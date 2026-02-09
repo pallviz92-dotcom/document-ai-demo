@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document AI – Extract Data from Invoices</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/main.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Auth check - redirect to login if not authenticated
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const isConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+    if (isConfigured) {
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) window.location.href = '/login.html';
+      });
+    } else {
+      // Demo mode - check localStorage
+      const user = localStorage.getItem('docai_user');
+      if (!user) window.location.href = '/login.html';
+    }
+  </script>
+  <script type="module" src="/main.js"></script>
+</head>
+
+<body>
+  <!-- Shell Bar -->
+  <header class="shell-bar">
+    <div class="shell-bar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+      <div>
+        <div class="shell-bar-title">Document AI</div>
+        <div class="shell-bar-subtitle">SAP Business Document Processing</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span id="userEmail" style="color: var(--text-muted); font-size: 0.85rem;"></span>
+      <button id="btnLogout" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="content">
+    <div class="page-header">
+      <h1 class="page-title">Extract Data from Documents</h1>
+      <p class="page-subtitle">Upload invoices, receipts, or purchase orders to automatically extract structured data
+        using AI</p>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Upload Documents
+        </h2>
+        <span id="fileCount" class="stat-label">0 files selected</span>
+      </div>
+
+      <div id="dropZone" class="upload-zone">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <p class="upload-text">Drag & drop files here or click to browse</p>
+        <p class="upload-hint">Supports PDF, PNG, JPG, TIFF • Multiple files allowed</p>
+        <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif" multiple hidden />
+      </div>
+
+      <div id="fileList" class="file-list hidden"></div>
+
+      <!-- Rotation selector for images -->
+      <div id="rotationSection" class="rotation-section hidden" style="margin-top: 1rem;">
+        <label
+          style="color: var(--text-secondary); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 2v6h-6"></path>
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+            <path d="M3 22v-6h6"></path>
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+          </svg>
+          Image Rotation:
+          <select id="rotationSelect"
+            style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+            <option value="0">0° (No rotation)</option>
+            <option value="90">90° Clockwise</option>
+            <option value="180">180° (Upside down)</option>
+            <option value="270">270° Clockwise</option>
+          </select>
+        </label>
+        <label
+          style="color: var(--text-secondary); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-left: 1.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Document Type:
+          <select id="documentTypeSelect"
+            style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+            <option value="invoice">Invoice</option>
+            <option value="paymentAdvice">Receipt / Payment Advice</option>
+            <option value="purchaseOrder">Purchase Order</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="btn-group" style="margin-top: 1.5rem;">
+        <button id="btnExtract" class="btn btn-primary" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          Extract All
+        </button>
+        <button id="btnClear" class="btn btn-outline" disabled>Clear All</button>
+      </div>
+
+      <div id="statusMessage" class="status-message hidden"></div>
+      <div id="progressBar" class="progress-bar hidden">
+        <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Results Card -->
+    <div id="resultsCard" class="card hidden">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Extraction Results
+        </h2>
+        <div class="btn-group">
+          <button id="btnExportExcel" class="btn btn-success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export to Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div id="statsGrid" class="stats-grid"></div>
+
+      <!-- Results Tabs -->
+      <div id="resultsContainer"></div>
+    </div>
+
+    <!-- History Card -->
+    <div id="historyCard" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          Processing History
+        </h2>
+        <div class="btn-group">
+          <button id="btnClearHistory" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+            Clear History
+          </button>
+        </div>
+      </div>
+      <div id="historyContainer" style="max-height: 300px; overflow-y: auto;">
+        <p style="color: var(--text-muted); padding: 1rem;">No processing history yet.</p>
+      </div>
+    </div>
+  </main>
+</body>
+
+</html>
