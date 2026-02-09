@@ -1,0 +1,27 @@
+# Render Blueprint - Document AI Demo
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: document-ai-demo
+    runtime: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      cd webapp && npm install && npm run build
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DOX_URL
+        sync: false
+      - key: DOX_CLIENT_ID
+        sync: false
+      - key: DOX_CLIENT_SECRET
+        sync: false
+      - key: DOX_UAADOMAIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
