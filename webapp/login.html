@@ -275,13 +275,13 @@
 
         // Check if Supabase is configured
         const isConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
-        let supabase = null;
+        let supabaseClient = null;
 
         if (isConfigured) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
             // Check if user is already logged in
-            supabase.auth.getSession().then(({ data: { session } }) => {
+            supabaseClient.auth.getSession().then(({ data: { session } }) => {
                 if (session) {
                     window.location.href = '/';
                 }
@@ -378,7 +378,7 @@
                 document.getElementById('loginBtn').disabled = true;
                 document.getElementById('loginBtn').textContent = 'Signing in...';
 
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
                 if (error) {
                     showError(error.message);
@@ -398,7 +398,7 @@
                 document.getElementById('signupBtn').disabled = true;
                 document.getElementById('signupBtn').textContent = 'Creating account...';
 
-                const { error } = await supabase.auth.signUp({
+                const { error } = await supabaseClient.auth.signUp({
                     email,
                     password,
                     options: { data: { full_name: name } }
@@ -415,7 +415,7 @@
             };
 
             document.getElementById('googleBtn').onclick = async () => {
-                await supabase.auth.signInWithOAuth({ provider: 'google' });
+                await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
             };
         }
     </script>
