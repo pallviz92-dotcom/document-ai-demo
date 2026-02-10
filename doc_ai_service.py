@@ -102,13 +102,14 @@ MIME_MAP = {
 
 
 def _get_client():
-    url = os.getenv("URL")
-    client_id = os.getenv("CLIENT_ID")
-    client_secret = os.getenv("CLIENT_SECRET")
-    uaa_url = os.getenv("UAADOMAIN")
+    # Support both DOX_* prefix (Render) and plain names (.env local)
+    url = os.getenv("DOX_URL") or os.getenv("URL")
+    client_id = os.getenv("DOX_CLIENT_ID") or os.getenv("CLIENT_ID")
+    client_secret = os.getenv("DOX_CLIENT_SECRET") or os.getenv("CLIENT_SECRET")
+    uaa_url = os.getenv("DOX_UAADOMAIN") or os.getenv("UAADOMAIN")
     if not all([url, client_id, client_secret, uaa_url]):
         raise ValueError(
-            "Missing Document AI credentials. Set URL, CLIENT_ID, CLIENT_SECRET, UAADOMAIN in .env"
+            "Missing Document AI credentials. Set DOX_URL, DOX_CLIENT_ID, DOX_CLIENT_SECRET, DOX_UAADOMAIN"
         )
     return DoxApiClient(url, client_id, client_secret, uaa_url)
 
