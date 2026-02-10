@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard – Document AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/main.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script>
+        // Auth check
+        const user = localStorage.getItem('docai_user');
+        if (!user) window.location.href = '/login.html';
+    </script>
+</head>
+
+<body>
+    <!-- Shell Bar -->
+    <header class="shell-bar">
+        <div class="shell-bar-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <div>
+                <div class="shell-bar-title">Document AI</div>
+                <div class="shell-bar-subtitle">Analytics Dashboard</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <nav class="nav-tabs">
+                <a href="/" class="nav-tab">Extract</a>
+                <a href="/dashboard.html" class="nav-tab active">Dashboard</a>
+            </nav>
+            <span id="userEmail" style="color: var(--text-muted); font-size: 0.85rem;"></span>
+            <button id="btnLogout" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                Logout
+            </button>
+        </div>
+    </header>
+
+    <main class="content">
+        <div class="page-header">
+            <h1 class="page-title">Processing Analytics</h1>
+            <p class="page-subtitle">Track your document processing performance, accuracy trends, and extraction history
+            </p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="statsGrid" style="margin-bottom: 1.5rem;">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-label">Total Documents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statToday">—</div>
+                <div class="stat-label">Processed Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statConfidence">—</div>
+                <div class="stat-label">Avg Confidence</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statTypes">—</div>
+                <div class="stat-label">Document Types</div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <!-- Line Chart: Docs per day -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                        Documents Per Day
+                    </h2>
+                </div>
+                <div style="position: relative; height: 280px; padding: 0.5rem;">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Doughnut: Doc type distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                            <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                        </svg>
+                        Document Types
+                    </h2>
+                </div>
+                <div
+                    style="position: relative; height: 280px; padding: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="typeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confidence Trend Chart -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Confidence Trends
+                </h2>
+            </div>
+            <div style="position: relative; height: 250px; padding: 0.5rem;">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Extractions Table -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Recent Extractions
+                </h2>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="recentTable">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Type</th>
+                            <th>Fields</th>
+                            <th>Line Items</th>
+                            <th>Confidence</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Saved Templates -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z">
+                        </path>
+                    </svg>
+                    Saved Templates
+                </h2>
+            </div>
+            <div id="templatesContainer" style="padding: 1rem;">
+                <p style="color: var(--text-muted);">No saved templates yet. Extract a document and save a template to
+                    see it here.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // User & Logout
+        const userEmailEl = document.getElementById("userEmail");
+        const btnLogout = document.getElementById("btnLogout");
+        const storedUser = localStorage.getItem("docai_user");
+        if (storedUser) {
+            try {
+                const u = JSON.parse(storedUser);
+                if (userEmailEl) userEmailEl.textContent = u.email || u.name || "";
+            } catch (e) { }
+        }
+        if (btnLogout) {
+            btnLogout.addEventListener("click", () => {
+                localStorage.removeItem("docai_user");
+                window.location.href = "/login.html";
+            });
+        }
+
+        // Chart.js defaults for dark theme
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = '#334155';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        const chartColors = {
+            primary: '#3b82f6',
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            purple: '#a855f7',
+            cyan: '#06b6d4',
+            pink: '#ec4899'
+        };
+
+        let dailyChart, typeChart, confidenceChart;
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                const [statsRes, chartsRes] = await Promise.all([
+                    fetch("/api/dashboard/stats"),
+                    fetch("/api/dashboard/charts")
+                ]);
+                const stats = await statsRes.json();
+                const charts = await chartsRes.json();
+
+                // Update stat cards
+                document.getElementById("statTotal").textContent = stats.total_documents || 0;
+                document.getElementById("statToday").textContent = stats.docs_today || 0;
+                document.getElementById("statConfidence").textContent = (stats.avg_confidence || 0) + '%';
+                document.getElementById("statTypes").textContent = (stats.document_types || []).length;
+
+                // Render charts
+                renderDailyChart(charts.daily_counts || []);
+                renderTypeChart(stats.document_types || []);
+                renderConfidenceChart(charts.confidence_trends || []);
+                renderRecentTable(charts.recent_extractions || []);
+
+            } catch (err) {
+                console.error("Dashboard load error:", err);
+                // Show data from localStorage as fallback
+                loadLocalHistory();
+            }
+        }
+
+        function renderDailyChart(data) {
+            const ctx = document.getElementById("dailyChart").getContext("2d");
+            if (dailyChart) dailyChart.destroy();
+
+            // If no server data, use localStorage
+            if (data.length === 0) {
+                const hist = JSON.parse(localStorage.getItem("documentAI_history") || "[]");
+                const dayCounts = {};
+                hist.forEach(h => {
+                    const d = h.date?.split('T')[0] || 'unknown';
+                    dayCounts[d] = (dayCounts[d] || 0) + (h.docCount || 1);
+                });
+                data = Object.entries(dayCounts).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
+            }
+
+            dailyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: 'Documents',
+                        data: data.map(d => d.count),
+                        borderColor: chartColors.primary,
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(51,65,85,0.5)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderTypeChart(data) {
+            const ctx = document.getElementById("typeChart").getContext("2d");
+            if (typeChart) typeChart.destroy();
+
+            if (data.length === 0) data = [{ type: 'invoice', count: 1 }];
+            const colors = [chartColors.primary, chartColors.success, chartColors.warning, chartColors.purple, chartColors.cyan, chartColors.pink];
+
+            typeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.type),
+                    datasets: [{
+                        data: data.map(d => d.count),
+                        backgroundColor: colors.slice(0, data.length),
+                        borderWidth: 2,
+                        borderColor: '#1e293b'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } }
+                    }
+                }
+            });
+        }
+
+        function renderConfidenceChart(data) {
+            const ctx = document.getElementById("confidenceChart").getContext("2d");
+            if (confidenceChart) confidenceChart.destroy();
+
+            if (data.length === 0) data = [{ date: new Date().toISOString().split('T')[0], avg_confidence: 0 }];
+
+            confidenceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: 'Avg Confidence %',
+                        data: data.map(d => d.avg_confidence),
+                        backgroundColor: data.map(d => d.avg_confidence >= 80 ? chartColors.success : d.avg_confidence >= 50 ? chartColors.warning : chartColors.danger),
+                        borderRadius: 6,
+                        barThickness: 24
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(51,65,85,0.5)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderRecentTable(data) {
+            const body = document.getElementById("recentBody");
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No extractions yet. Upload a document to get started!</td></tr>';
+                return;
+            }
+
+            body.innerHTML = data.map(e => {
+                const confClass = e.avg_confidence >= 80 ? 'confidence-high' : e.avg_confidence >= 50 ? 'confidence-medium' : 'confidence-low';
+                const date = e.created_at ? new Date(e.created_at).toLocaleDateString() : '—';
+                return `
+          <tr>
+            <td>${e.filename || '—'}</td>
+            <td><span style="background: var(--bg-card-hover); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">${e.document_type || '—'}</span></td>
+            <td>${e.header_count || 0}</td>
+            <td>${e.line_item_count || 0}</td>
+            <td><span class="confidence-badge ${confClass}">${e.avg_confidence || 0}%</span></td>
+            <td style="color: var(--text-muted); font-size: 0.85rem;">${date}</td>
+          </tr>
+        `;
+            }).join('');
+        }
+
+        // Fallback: Load from localStorage if API fails
+        function loadLocalHistory() {
+            const hist = JSON.parse(localStorage.getItem("documentAI_history") || "[]");
+            document.getElementById("statTotal").textContent = hist.reduce((sum, h) => sum + (h.docCount || 0), 0);
+            document.getElementById("statToday").textContent = hist.filter(h => h.date?.startsWith(new Date().toISOString().split('T')[0])).length;
+            document.getElementById("statConfidence").textContent = '—';
+            document.getElementById("statTypes").textContent = '—';
+
+            renderDailyChart([]);
+            renderTypeChart([]);
+            renderConfidenceChart([]);
+            renderRecentTable([]);
+        }
+
+        // Initialize
+        loadDashboard();
+    </script>
+</body>
+
+</html>

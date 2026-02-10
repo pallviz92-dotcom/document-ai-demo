@@ -53,6 +53,10 @@ const rotationSection = document.getElementById("rotationSection");
 const rotationSelect = document.getElementById("rotationSelect");
 const documentTypeSelect = document.getElementById("documentTypeSelect");
 const historyContainer = document.getElementById("historyContainer");
+const batchProgress = document.getElementById("batchProgress");
+const batchStats = document.getElementById("batchStats");
+const batchFileList = document.getElementById("batchFileList");
+const btnRetryFailed = document.getElementById("btnRetryFailed");
 const btnClearHistory = document.getElementById("btnClearHistory");
 
 // File Upload Handlers
@@ -177,24 +181,67 @@ btnExtract.addEventListener("click", async () => {
   if (selectedFiles.length === 0) return;
 
   extractionResults = [];
-  showStatus("loading", `Processing ${selectedFiles.length} document${selectedFiles.length > 1 ? 's' : ''}...`);
+  const totalFiles = selectedFiles.length;
+  const isBatch = totalFiles > 1;
+
+  showStatus("loading", `Processing ${totalFiles} document${totalFiles > 1 ? 's' : ''}...`);
   progressBar.classList.remove("hidden");
   btnExtract.disabled = true;
   btnExtract.innerHTML = '<div class="spinner"></div> Extracting...';
 
-  let processed = 0;
+  // Initialize batch tracking
+  const fileStatuses = selectedFiles.map((f, i) => ({ index: i, file: f, status: 'pending', error: null }));
 
-  for (const file of selectedFiles) {
-    try {
-      const result = await extractDocument(file);
-      extractionResults.push({ file: file.name, success: true, data: result });
-    } catch (error) {
-      extractionResults.push({ file: file.name, success: false, error: error.message });
-    }
-    processed++;
-    progressFill.style.width = `${(processed / selectedFiles.length) * 100}%`;
+  if (isBatch && batchProgress) {
+    batchProgress.classList.remove("hidden");
+    if (btnRetryFailed) btnRetryFailed.classList.add("hidden");
   }
 
+  function renderBatchUI() {
+    if (!isBatch || !batchProgress) return;
+    const done = fileStatuses.filter(f => f.status === 'done').length;
+    const failed = fileStatuses.filter(f => f.status === 'failed').length;
+    const processing = fileStatuses.filter(f => f.status === 'processing').length;
+    const pending = fileStatuses.filter(f => f.status === 'pending').length;
+
+    if (batchStats) {
+      batchStats.innerHTML = `
+        <div class="batch-stat"><div class="batch-stat-value">${done + failed}/${totalFiles}</div><div class="batch-stat-label">Completed</div></div>
+        <div class="batch-stat"><div class="batch-stat-value" style="color: var(--accent-success);">${done}</div><div class="batch-stat-label">Successful</div></div>
+        <div class="batch-stat"><div class="batch-stat-value" style="color: var(--accent-danger);">${failed}</div><div class="batch-stat-label">Failed</div></div>
+        <div class="batch-stat"><div class="batch-stat-value">${pending + processing}</div><div class="batch-stat-label">Remaining</div></div>
+      `;
+    }
+
+    if (batchFileList) {
+      batchFileList.innerHTML = fileStatuses.map(fs => {
+        const icon = fs.status === 'done' ? '\u2705' : fs.status === 'failed' ? '\u274c' : fs.status === 'processing' ? '<span class="batch-spinner">\u2699\ufe0f</span>' : '\u23f3';
+        const statusText = fs.status === 'processing' ? 'Extracting...' : fs.status === 'done' ? 'Complete' : fs.status === 'failed' ? (fs.error || 'Failed') : 'Pending';
+        return `<div class="batch-item ${fs.status}"><span class="batch-icon">${icon}</span><span class="batch-name">${fs.file.name}</span><span class="batch-status">${statusText}</span></div>`;
+      }).join('');
+    }
+  }
+
+  renderBatchUI();
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    fileStatuses[i].status = 'processing';
+    renderBatchUI();
+    progressFill.style.width = `${((i) / selectedFiles.length) * 100}%`;
+
+    try {
+      const result = await extractDocument(selectedFiles[i]);
+      extractionResults.push({ file: selectedFiles[i].name, success: true, data: result });
+      fileStatuses[i].status = 'done';
+    } catch (err) {
+      extractionResults.push({ file: selectedFiles[i].name, success: false, error: err.message });
+      fileStatuses[i].status = 'failed';
+      fileStatuses[i].error = err.message?.substring(0, 40) || 'Error';
+    }
+    renderBatchUI();
+  }
+
+  progressFill.style.width = "100%";
   btnExtract.disabled = false;
   btnExtract.innerHTML = `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -205,16 +252,60 @@ btnExtract.addEventListener("click", async () => {
   `;
 
   const successCount = extractionResults.filter(r => r.success).length;
+  const failedCount = extractionResults.filter(r => !r.success).length;
+
   if (successCount === selectedFiles.length) {
     showStatus("success", `Successfully extracted data from ${successCount} document${successCount > 1 ? 's' : ''}`);
   } else {
-    showStatus("error", `Extracted ${successCount}/${selectedFiles.length} documents. Some failed.`);
+    showStatus("error", `Extracted ${successCount}/${selectedFiles.length} documents. ${failedCount} failed.`);
+  }
+
+  // Show retry button if any failed
+  if (failedCount > 0 && isBatch && btnRetryFailed) {
+    btnRetryFailed.classList.remove("hidden");
   }
 
   setTimeout(() => progressBar.classList.add("hidden"), 1000);
   renderResults();
   saveToHistory(extractionResults);
 });
+
+// Retry Failed handler
+if (btnRetryFailed) {
+  btnRetryFailed.addEventListener("click", async () => {
+    const failedFiles = [];
+    const failedIndices = [];
+    extractionResults.forEach((r, i) => {
+      if (!r.success) {
+        failedFiles.push(selectedFiles[i]);
+        failedIndices.push(i);
+      }
+    });
+
+    if (failedFiles.length === 0) return;
+    btnRetryFailed.disabled = true;
+    btnRetryFailed.textContent = '\ud83d\udd04 Retrying...';
+    showStatus("loading", `Retrying ${failedFiles.length} failed document${failedFiles.length > 1 ? 's' : ''}...`);
+
+    for (let j = 0; j < failedFiles.length; j++) {
+      const origIndex = failedIndices[j];
+      try {
+        const result = await extractDocument(failedFiles[j]);
+        extractionResults[origIndex] = { file: failedFiles[j].name, success: true, data: result };
+      } catch (err) {
+        extractionResults[origIndex] = { file: failedFiles[j].name, success: false, error: err.message };
+      }
+    }
+
+    const newSuccess = extractionResults.filter(r => r.success).length;
+    showStatus(newSuccess === extractionResults.length ? "success" : "error",
+      `Retry complete: ${newSuccess}/${extractionResults.length} successful`);
+    renderResults();
+    btnRetryFailed.disabled = false;
+    btnRetryFailed.textContent = '\ud83d\udd04 Retry Failed';
+    if (extractionResults.every(r => r.success)) btnRetryFailed.classList.add("hidden");
+  });
+}
 
 async function extractDocument(file) {
   const form = new FormData();
@@ -377,10 +468,11 @@ function renderResults() {
       const value = obj && typeof obj === "object" && "value" in obj ? obj.value : obj;
       const confidence = obj && typeof obj === "object" && "confidence" in obj ? obj.confidence : null;
       const confPct = confidence !== null ? Math.round(confidence * 100) : null;
-      const confColor = confPct === null ? 'gray' : confPct >= 80 ? '#22c55e' : confPct >= 50 ? '#eab308' : '#ef4444';
+      const confClass = confPct === null ? 'confidence-none' : confPct >= 80 ? 'confidence-high' : confPct >= 50 ? 'confidence-medium' : 'confidence-low';
+      const fieldClass = confPct !== null && confPct < 50 ? 'field-item low-confidence' : 'field-item';
       return `
-              <div class="field-item">
-                <div class="field-label">${key}${confPct !== null ? `<span class="confidence-badge" style="background: ${confColor}; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; margin-left: 6px;">${confPct}%</span>` : ''}</div>
+              <div class="${fieldClass}">
+                <div class="field-label">${key}${confPct !== null ? `<span class="confidence-badge ${confClass}" title="Confidence: ${confPct}%">${confPct}%</span>` : ''}</div>
                 <div class="field-value">${formatValue(value)}</div>
               </div>
             `;
@@ -408,14 +500,14 @@ function renderResults() {
       // Average confidence across available fields
       const confs = [item.description?.confidence, item.quantity?.confidence, item.unitPrice?.confidence, item.netAmount?.confidence].filter(c => c !== undefined);
       const avgConf = confs.length > 0 ? Math.round((confs.reduce((a, b) => a + b, 0) / confs.length) * 100) : null;
-      const confColor = avgConf === null ? '#6b7280' : avgConf >= 80 ? '#22c55e' : avgConf >= 50 ? '#eab308' : '#ef4444';
+      const confClass = avgConf === null ? 'confidence-none' : avgConf >= 80 ? 'confidence-high' : avgConf >= 50 ? 'confidence-medium' : 'confidence-low';
       return `
                 <tr>
                   <td>${formatValue(desc)}</td>
                   <td>${formatValue(qty)}</td>
                   <td>${formatValue(unitP)}</td>
                   <td>${formatValue(netA)}</td>
-                  <td><span style="background: ${confColor}; color: white; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;">${avgConf !== null ? avgConf + '%' : '—'}</span></td>
+                  <td><span class="confidence-badge ${confClass}" title="Avg confidence: ${avgConf}%">${avgConf !== null ? avgConf + '%' : '—'}</span></td>
                 </tr>
               `}).join("")}
             </tbody>

@@ -47,6 +47,10 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 1rem;">
+      <nav class="nav-tabs">
+        <a href="/" class="nav-tab active">Extract</a>
+        <a href="/dashboard.html" class="nav-tab">Dashboard</a>
+      </nav>
       <span id="userEmail" style="color: var(--text-muted); font-size: 0.85rem;"></span>
       <button id="btnLogout" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
         Logout
@@ -140,6 +144,14 @@
       <div id="statusMessage" class="status-message hidden"></div>
       <div id="progressBar" class="progress-bar hidden">
         <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+      </div>
+
+      <!-- Batch Progress Section -->
+      <div id="batchProgress" class="batch-progress hidden">
+        <div id="batchStats" class="batch-stats"></div>
+        <div id="batchFileList" style="max-height: 200px; overflow-y: auto;"></div>
+        <button id="btnRetryFailed" class="btn btn-outline hidden" style="margin-top: 0.75rem; font-size: 0.8rem;">🔄
+          Retry Failed</button>
       </div>
     </div>
 
