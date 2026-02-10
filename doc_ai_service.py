@@ -152,16 +152,8 @@ def extract_from_file(file_stream, filename, document_type="invoice", client_id=
             header_fields=HEADER_FIELDS,
             line_item_fields=LINE_ITEM_FIELDS,
         )
-        
-        # Log result for debugging
-        import json
-        print(f"[DEBUG] Extraction result for {filename}:")
-        print(json.dumps(result, indent=2, default=str)[:2000])
-        
-        # Save full response to file for analysis
-        with open("last_response.json", "w") as f:
-            json.dump(result, f, indent=2, default=str)
-        print(f"[DEBUG] Full response saved to last_response.json")
+        # Log result summary
+        print(f"[INFO] Extraction complete for {filename}: status={result.get('status', 'unknown')}")
         
         return result
     except Exception as e:
@@ -169,12 +161,12 @@ def extract_from_file(file_stream, filename, document_type="invoice", client_id=
         raise
     finally:
         # Clean up temp files
-        for path in [tmp_path, rotated_path]:
-            if path:
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
+        paths_to_clean = set(filter(None, [tmp_path, rotated_path]))
+        for path in paths_to_clean:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 def _is_image(filename):

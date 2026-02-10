@@ -24,14 +24,7 @@ if (storedUser) {
 if (btnLogout) {
   btnLogout.addEventListener("click", () => {
     localStorage.removeItem("docai_user");
-    // If Supabase is configured, sign out there too
-    if (window.supabase) {
-      window.supabase.auth.signOut().then(() => {
-        window.location.href = "/login.html";
-      });
-    } else {
-      window.location.href = "/login.html";
-    }
+    window.location.href = "/login.html";
   });
 }
 
@@ -388,12 +381,11 @@ function renderResults() {
       `;
     }
 
-    // DEBUG: Log the full response to see its structure
-    console.log('[DEBUG] Full API response for', result.file, ':', JSON.stringify(result.data, null, 2));
+
 
     // Try multiple paths to find the data - SAP Document AI returns nested structure
     const extraction = result.data.extraction || result.data.extractionResult || result.data.document || result.data;
-    console.log('[DEBUG] Extraction object:', JSON.stringify(extraction, null, 2));
+
 
     // SAP Document AI returns arrays of {name, value, rawValue, confidence} objects
     let headerArray = extraction.headerFields || extraction.header || [];
