@@ -1,11 +1,15 @@
 """Flask backend for Document AI web app."""
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from doc_ai_service import get_capabilities, extract_from_file
 from db_service import (
+    init_db, create_user, verify_user, log_login, get_login_logs,
     get_dashboard_stats, get_daily_extraction_counts,
     get_confidence_trends, get_recent_extractions,
     save_template, get_template, list_templates, delete_template
@@ -14,6 +18,12 @@ from db_service import (
 static_dir = os.path.join(os.path.dirname(__file__), "webapp", "dist")
 app = Flask(__name__, static_folder=static_dir, static_url_path="")
 CORS(app)
+
+# Initialize database on startup
+try:
+    init_db()
+except Exception as e:
+    print(f"[WARNING] MongoDB init skipped: {e}")
 
 
 @app.route("/")
@@ -77,6 +87,77 @@ def api_extract():
             rotation=rotation,
         )
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =========================================
+# AUTH API
+# =========================================
+
+@app.route("/api/auth/login", methods=["POST"])
+def api_login():
+    data = request.get_json()
+    if not data or not data.get("email") or not data.get("password"):
+        return jsonify({"error": "Email and password required"}), 400
+    try:
+        result = verify_user(data["email"], data["password"])
+        if result["success"]:
+            log_login(
+                email=data["email"],
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get("User-Agent", ""),
+                method="password"
+            )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/auth/signup", methods=["POST"])
+def api_signup():
+    data = request.get_json()
+    if not data or not data.get("email") or not data.get("password"):
+        return jsonify({"error": "Email and password required"}), 400
+    try:
+        result = create_user(data["email"], data["password"], data.get("name"))
+        if result["success"]:
+            log_login(
+                email=data["email"],
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get("User-Agent", ""),
+                method="signup"
+            )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/auth/log", methods=["POST"])
+def api_log_login():
+    """Log a demo-mode login event."""
+    data = request.get_json()
+    if not data or not data.get("email"):
+        return jsonify({"error": "Email required"}), 400
+    try:
+        result = log_login(
+            email=data["email"],
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent", ""),
+            method=data.get("method", "demo")
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/auth/logs")
+def api_login_logs():
+    """Get login history."""
+    try:
+        limit = int(request.args.get("limit", 100))
+        logs = get_login_logs(limit)
+        return jsonify(logs)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -152,4 +233,3 @@ def api_delete_template(template_id):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-

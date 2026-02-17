@@ -347,6 +347,14 @@
 
                 // Demo: accept any credentials
                 if (email && password.length >= 6) {
+                    // Log the login to the backend
+                    try {
+                        await fetch('/api/auth/log', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, method: 'demo' })
+                        });
+                    } catch (err) { /* ignore if backend is down */ }
                     localStorage.setItem('docai_user', JSON.stringify({ email, name: email.split('@')[0] }));
                     window.location.href = '/';
                 } else {
@@ -361,6 +369,14 @@
                 const password = document.getElementById('signupPassword').value;
 
                 if (name && email && password.length >= 6) {
+                    // Try to create a real account, log the signup
+                    try {
+                        await fetch('/api/auth/signup', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, password, name })
+                        });
+                    } catch (err) { /* ignore if backend is down */ }
                     localStorage.setItem('docai_user', JSON.stringify({ email, name }));
                     showSuccess('Account created! Redirecting...');
                     setTimeout(() => window.location.href = '/', 1500);

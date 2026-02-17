@@ -1,10 +1,17 @@
 """MongoDB Database Service for Document AI."""
 
 import os
+import logging
 from datetime import datetime, timezone
+from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 import bcrypt
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # MongoDB connection
 MONGO_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/docai")
@@ -16,8 +23,15 @@ def get_db():
     """Get MongoDB database connection."""
     global client, db
     if db is None:
-        client = MongoClient(MONGO_URI)
-        db = client.get_database()
+        try:
+            client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+            # Verify the connection works
+            client.admin.command('ping')
+            db = client.get_database()
+            logger.info(f"[MongoDB] Connected to database: {db.name}")
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"[MongoDB] Connection failed: {e}")
+            raise
     return db
 
 
@@ -29,8 +43,10 @@ def init_db():
     database.users.create_index("email", unique=True)
     database.extractions.create_index("user_id")
     database.extractions.create_index("created_at")
+    database.login_logs.create_index("email")
+    database.login_logs.create_index("timestamp")
     
-    print("[INFO] MongoDB initialized successfully")
+    logger.info("[MongoDB] Initialized successfully")
     return database
 
 
@@ -95,6 +111,45 @@ def sanitize_user(user: dict) -> dict:
         "created_at": user.get("created_at"),
         "extraction_count": user.get("extraction_count", 0)
     }
+
+
+# ==========================================
+# LOGIN TRACKING
+# ==========================================
+
+def log_login(email: str, ip_address: str = None, user_agent: str = None, method: str = "password") -> dict:
+    """Record a login event."""
+    database = get_db()
+    
+    entry = {
+        "email": email.lower().strip(),
+        "timestamp": datetime.now(timezone.utc),
+        "ip_address": ip_address or "unknown",
+        "user_agent": user_agent or "unknown",
+        "method": method  # password, signup, demo
+    }
+    
+    result = database.login_logs.insert_one(entry)
+    return {"id": str(result.inserted_id), "email": entry["email"], "timestamp": entry["timestamp"].isoformat()}
+
+
+def get_login_logs(limit: int = 100) -> list:
+    """Get recent login events."""
+    database = get_db()
+    
+    logs = database.login_logs.find().sort("timestamp", -1).limit(limit)
+    
+    return [
+        {
+            "email": log.get("email"),
+            "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else None,
+            "ip_address": log.get("ip_address"),
+            "user_agent": log.get("user_agent"),
+            "method": log.get("method", "unknown")
+        }
+        for log in logs
+    ]
+
 
 
 # ==========================================
